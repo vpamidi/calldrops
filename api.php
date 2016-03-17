@@ -50,6 +50,46 @@ class API extends REST
         }
     }
 
+    private function generateData()
+    {
+        if ($this->getRequestMethod() != "POST") {
+            $this->response('', 406);
+        }
+
+        $params = json_decode(file_get_contents("php://input"), true);
+
+        $result = array('success' => true);
+        $count = $params['count'];
+        $operators = array('idea', 'airtel', 'vodafone', 'reliance', 'tata', 'bsnl');
+        $query = "INSERT INTO calldrop(latitude, longitude, `date`, operator, signalstrength) VALUES ";
+        $values = array();
+        for ($i = 1; $i <= $count; $i++) {
+            $lat = '17.'.rand(400000, 420000);
+            $lng = '78.'.rand(450000, 500000);
+            $date = $this->randomDate('2016-03-01', '2016-03-15');
+            $key = array_rand($operators);
+
+            $values[] = "($lat, $lng, '$date', '$operators[$key]', " . rand(1, 12).  ")";
+        }
+        $query .= implode(',', $values);
+        //echo "$query<br>";
+        $this->mysqli->query($query);
+        $this->response($this->json($result), 200);
+    }
+
+    private function randomDate($start_date, $end_date)
+    {
+        // Convert to timetamps
+        $min = strtotime($start_date);
+        $max = strtotime($end_date);
+
+        // Generate random number using above bounds
+        $val = rand($min, $max);
+
+        // Convert back to desired date format
+        return date('Y-m-d H:i:s', $val);
+    }
+
     /**
      *
      * @$para type string
@@ -64,20 +104,20 @@ class API extends REST
             $this->response('', 406);
         }
 
-        $query = "SELECT c.latitude as lat, c.longitude as lng FROM calldrop c";
+        $query = "SELECT c.latitude as lat, c.longitude as lng FROM calldrop c where c.operator != '' ";
 
         //$groupBy = "group by c.latitude, c.longitude";
 
         if (!empty($para)) {
-            $query .= " where c.operator = '$para' ";
+            $query .= " and c.operator = '$para' ";
         } else if (!empty($sdate) && !empty($edate)) {
-            $query .= " where c.date >= '$sdate' AND c.date <=  '$edate'";
+            $query .= " and c.date >= '$sdate' AND c.date <=  '$edate'";
         } else if (!empty($sdate)) {
-            $query .= " where c.date like '$sdate%' ";
+            $query .= " and c.date like '$sdate%' ";
         } else if (!empty($edate)) {
-            $query .= " where c.date like '$edate%' ";
+            $query .= " and c.date like '$edate%' ";
         }
-
+        //$query .= " limit 2000 ";
         $r = $this->mysqli->query($query) or die($this->mysqli->error . __LINE__);
 
         if ($r->num_rows > 0) {
