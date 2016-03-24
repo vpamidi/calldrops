@@ -35,13 +35,15 @@ class API extends REST
     {
         $functonName = strtolower(trim(str_replace("/", "", $_REQUEST['x'])));
 
-        $operator = isset($_REQUEST['operator']) ? $_REQUEST['operator'] : "";
+        $operator = isset($_REQUEST['operator']) ? $_REQUEST['operator'] : '';
         $sdate = isset($_REQUEST['startdate']) ? $_REQUEST['startdate'] : '';
         $edate = isset($_REQUEST['enddate']) ? $_REQUEST['enddate'] : '';
+        $lat = isset($_REQUEST['lat']) ? $_REQUEST['lat'] : 17.449444;
+        $lng = isset($_REQUEST['lng']) ? $_REQUEST['lng'] : 78.372506;
 
         if ((int) method_exists($this, $functonName) > 0) {
             if (isset($operator) || ( isset($sdate) || isset($edate) )) {
-                $this->$functonName($operator, $sdate, $edate);
+                $this->$functonName($operator, $sdate, $edate, $lat, $lng);
             } else {
                 $this->$functonName();
             }
@@ -63,6 +65,7 @@ class API extends REST
         $operators = array('idea', 'airtel', 'vodafone', 'reliance', 'tata', 'bsnl');
         $query = "INSERT INTO calldrop(latitude, longitude, `date`, operator, signalstrength) VALUES ";
         $values = array();
+
         for ($i = 1; $i <= $count; $i++) {
             $lat = '17.'.rand(400000, 420000);
             $lng = '78.'.rand(450000, 500000);
@@ -72,7 +75,7 @@ class API extends REST
             $values[] = "($lat, $lng, '$date', '$operators[$key]', " . rand(1, 12).  ")";
         }
         $query .= implode(',', $values);
-        //echo "$query<br>";
+
         $this->mysqli->query($query);
         $this->response($this->json($result), 200);
     }
@@ -98,36 +101,41 @@ class API extends REST
      *
      * Method to get data using API call.
      */
-    private function mData($para = '', $sdate = '', $edate = '')
+    private function mData($operator = '', $sdate = '', $edate = '', $lat = 17.449444, $lng = 78.372506)
     {
+
         if ($this->getRequestMethod() != "GET") {
             $this->response('', 406);
         }
 
-        $query = "SELECT c.latitude as lat, c.longitude as lng FROM calldrop c where c.operator != '' ";
+        //$query = "SELECT c.latitude as lat, c.longitude as lng FROM calldrop c where c.operator != '' ";
 
-        //$groupBy = "group by c.latitude, c.longitude";
+        $query = "SELECT latitude as lat, longitude as lng FROM `calldrop` "
+            . "WHERE (6371 * ACOS(SIN(RADIANS( $lat )) * SIN(RADIANS(`latitude`)) + COS(RADIANS( $lat )) * "
+            . "COS(RADIANS(`latitude`)) * COS(RADIANS(`longitude`) - RADIANS( $lng )))) "
+            . "<= 10";
 
-        if (!empty($para)) {
-            $query .= " and c.operator = '$para' ";
+        if (!empty($operator)) {
+            $query .= " and operator = '$operator' ";
         } else if (!empty($sdate) && !empty($edate)) {
-            $query .= " and c.date >= '$sdate' AND c.date <=  '$edate'";
+            $query .= " and date >= '$sdate' AND c.date <=  '$edate'";
         } else if (!empty($sdate)) {
-            $query .= " and c.date like '$sdate%' ";
+            $query .= " and date like '$sdate%' ";
         } else if (!empty($edate)) {
-            $query .= " and c.date like '$edate%' ";
+            $query .= " and date like '$edate%' ";
         }
-        //$query .= " limit 2000 ";
+
         $r = $this->mysqli->query($query) or die($this->mysqli->error . __LINE__);
 
+        $result = array('count' => 0, 'locations' => array());
         if ($r->num_rows > 0) {
-            $result = array();
             while ($row = $r->fetch_assoc()) {
-                $result[] = $row;
+                $result['locations'][] = $row;
             }
-            $this->response($this->json($result), 200); // send user details
+            $result['count'] = $r->num_rows;
         }
-        $this->response('', 204); // If no records "No Content" status
+
+        $this->response($this->json($result), 200); // send user details
     }
 
     /**
@@ -160,7 +168,7 @@ class API extends REST
                 }
 
                 $query = "INSERT INTO calldrop(" . trim(implode(',', $columns), ',') . ") VALUES(" . trim(implode(',', $values), ',') . ")";
-                //echo "$query<br>";
+
                 if (!empty($mdata)) {
                     if ($this->mysqli->query($query)) {
                         $r[].='records inserted';
