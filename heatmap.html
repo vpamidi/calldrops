@@ -38,7 +38,7 @@
     </head>
 
     <body>
-        <div id="floating-panel"> Operator : 
+        <div id="floating-panel"> Operator :
             <!--button onclick="toggleHeatmap()">Toggle Heatmap</button>
             <button onclick="changeGradient()">Change gradient</button>
             <button onclick="changeRadius()">Change radius</button>
@@ -58,7 +58,7 @@
             // <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=visualization">
 
             var map, heatmap;
-            
+
             function initMap() {
                 latlng = {lat: 17.449444, lng: 78.372506};
                 map = new google.maps.Map(document.getElementById('map'), {
@@ -71,7 +71,7 @@
                     data: getPoints(),
                     map: map
                 });
-                
+
                 marker = new google.maps.Marker({
                     position: latlng,
                     map: map,
@@ -116,7 +116,7 @@
 
                 var xhr = new XMLHttpRequest();
 
-                var url = "http://localhost:8081/calldrop/api.php?x=mData";
+                var url = "http://localhost/calldrop/api.php?x=mDataNearestMultiplePoints";
                 //var url = "http://tcg.valuelabs.com/calldrop/api.php?x=mData";
 
                 if (operator && operator !== ''){
@@ -138,7 +138,7 @@
 
                 return latlang;
             }
-            
+
             function changeOperator(val) {
                 heatmap.setData(getPoints(val));
             }

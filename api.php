@@ -7,9 +7,9 @@ class API extends REST
     public $data = "";
 
     const DB_SERVER = "127.0.0.1";
-    const DB_USER = "tcg";
-    const DB_PASSWORD = "tcg!@#";
-    const DB = "tcg";
+    const DB_USER = "root";
+    const DB_PASSWORD = "";
+    const DB = "calldrop";
 
     private $mysqli = NULL;
 
@@ -136,6 +136,112 @@ class API extends REST
         }
 
         $this->response($this->json($result), 200); // send user details
+    }
+
+
+    /**
+     *
+     * @$para type string
+     * @$sdate type date
+     * @$edate type date
+     *
+     * Method to get data using API call.
+     */
+    private function mDataNearestMultiplePoints($operator = '', $sdate = '', $edate = '', $lat = 17.449444, $lng = 78.372506, $distance = 0.5)
+    {
+
+        if ($this->getRequestMethod() != "GET") {
+            $this->response('', 406);
+        }
+
+       /* $query = "SELECT latitude as lat, longitude as lng FROM `calldrop` "
+            . "WHERE (6371 * ACOS(SIN(RADIANS( $lat )) * SIN(RADIANS(`latitude`)) + COS(RADIANS( $lat )) * "
+            . "COS(RADIANS(`latitude`)) * COS(RADIANS(`longitude`) - RADIANS( $lng )))) "
+            . "<= 10";*/
+        $query = "SELECT a.id as fid, a.latitude as flat, a.longitude as flng, b.id as sid, b.latitude as slat, b.longitude as slng, "
+            . "(((acos(sin((b.latitude*pi()/180)) * sin((a.latitude*pi()/180))+cos((b.latitude*pi()/180)) * cos((a.latitude*pi()/180)) * cos(((b.longitude- a.longitude)*pi()/180))))*180/pi())*60*1.1515*1.609344) AS distance "
+            . "FROM (SELECT id,latitude,longitude FROM `calldrop` WHERE "
+            . "(6371 * ACOS(SIN(RADIANS( ".$lat." )) * SIN(RADIANS(latitude)) + COS(RADIANS( ".$lat." )) * COS(RADIANS(latitude)) * COS(RADIANS(longitude) - RADIANS( ".$lng." )))) <= 10 ) a, "
+            . "(SELECT id,latitude,longitude FROM `calldrop` WHERE"
+            ." (6371 * ACOS(SIN(RADIANS( ".$lat." )) * SIN(RADIANS(latitude)) + COS(RADIANS( ".$lat." )) * COS(RADIANS(latitude)) * COS(RADIANS(longitude) - RADIANS( ".$lng." )))) <= 10 ) b"
+            . " where a.id != b.id Having distance <= ".$distance;
+
+        if (!empty($operator)) {
+            $query .= " and operator = '$operator' ";
+        } else if (!empty($sdate) && !empty($edate)) {
+            $query .= " and date >= '$sdate' AND c.date <=  '$edate'";
+        } else if (!empty($sdate)) {
+            $query .= " and date like '$sdate%' ";
+        } else if (!empty($edate)) {
+            $query .= " and date like '$edate%' ";
+        }
+
+        $r = $this->mysqli->query($query) or die($this->mysqli->error . __LINE__);
+
+        $result = array('count' => 0, 'locations' => array());
+        if ($r->num_rows > 0) {
+            while ($row = $r->fetch_assoc()) {
+                $result['locations'][] = $row;
+            }
+            $result['count'] = $r->num_rows;
+        }
+
+        $responseData = array();
+        $responseData['locations'] = $this->getNearestPoints($result);
+        $responseData['count'] = count($responseData['locations']);
+
+        $this->response($this->json($responseData), 200); // send user details
+    }
+
+    /**
+     *
+     * @$result array
+     *
+     * Method to get distance between points.
+     */
+    private function getNearestPoints($result) {
+
+        $pointsData = $result['locations'];
+        $idsData = array();
+        $results = array();
+         if($result['count'] > 0 ) {
+            $i = 0;
+            foreach($pointsData as $row) {
+                 if(!in_array($row['fid'], $idsData)) {
+                     $idsData[] = $row['fid'];
+                     $results[$i]['lat'] = $row['flat'];
+                     $results[$i]['lng'] = $row['flng'];
+                     $i++;
+                 }
+                 if(!in_array($row['sid'], $idsData)) {
+                     $idsData[] = $row['sid'];
+                     $results[$i]['lat'] = $row['slat'];
+                     $results[$i]['lng'] = $row['slng'];
+                     $i++;
+                 }
+            }
+         }
+        // $results = array_map("unserialize", array_unique(array_map("serialize", $results)));
+         return $results;
+    }
+
+    /**
+     *
+     * @$lat1 type float
+     * @$lon1 type float
+     * @$lat2 type float
+     * @$lon2 type float
+     *
+     * Method to get distance between two calls.
+     */
+    private function getDistanceBetweenPoints($lat1, $lon1, $lat2, $lon2) {
+        $theta = $lon1 - $lon2;
+        $miles = (sin(deg2rad($lat1)) * sin(deg2rad($lat2))) + (cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * cos(deg2rad($theta)));
+        $miles = acos($miles);
+        $miles = rad2deg($miles);
+        $miles = $miles * 60 * 1.1515;
+        $kilometers = $miles * 1.609344;
+        return $kilometers;
     }
 
     /**
